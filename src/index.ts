@@ -161,7 +161,7 @@ export default class TSFragmenter extends Writable {
     m3u8 += `#EXT-X-VERSION:6\n`
     m3u8 += `#EXT-X-TARGETDURATION:${this.getTargetDuration()}\n`
     m3u8 += `#EXT-X-PART-INF:PART-TARGET=${this.M3U8_Part_Target.toFixed(3)}\n`
-    m3u8 += `#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=${(this.M3U8_Part_Target * 3).toFixed(3)}\n`
+    m3u8 += `#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=${(this.M3U8_Part_Target * 3.5).toFixed(3)}\n`
     m3u8 += `#EXT-X-MEDIA-SEQUENCE:${this.M3U8_Begin_Sequence_Number}\n`
     for (let media_sequence = this.M3U8_Begin_Sequence_Number; media_sequence < this.M3U8_End_Sequence_Number; media_sequence++) {
       const index = media_sequence - this.M3U8_Begin_Sequence_Number;
