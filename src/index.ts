@@ -113,6 +113,7 @@ class Segment extends PartialSegment {
 
 type TSFragmenterOptions = WritableOptions & {
   length?: number,
+  lowLatencyMode?: boolean,
   partTarget?: number,
 }
 
@@ -139,6 +140,7 @@ export default class TSFragmenter extends Writable {
   private Video_Packets: Buffer[] = [];
 
   private M3U8_Segments_Length: number;
+  private M3U8_Low_Latency_Mode: boolean;
   private M3U8_Part_Target: number;
   private M3U8_Begin_Sequence_Number: number = 0;
   private M3U8_End_Sequence_Number: number = 0;
@@ -151,6 +153,7 @@ export default class TSFragmenter extends Writable {
   public constructor(options?: TSFragmenterOptions) {
     super(options);
     this.M3U8_Segments_Length = options?.length ?? 3;
+    this.M3U8_Low_Latency_Mode = options?.lowLatencyMode ?? true;
     this.M3U8_Part_Target = options?.partTarget ?? 1;
   }
 
@@ -160,8 +163,10 @@ export default class TSFragmenter extends Writable {
     m3u8 += `#EXTM3U\n`
     m3u8 += `#EXT-X-VERSION:6\n`
     m3u8 += `#EXT-X-TARGETDURATION:${this.getTargetDuration()}\n`
-    m3u8 += `#EXT-X-PART-INF:PART-TARGET=${this.M3U8_Part_Target.toFixed(3)}\n`
-    m3u8 += `#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=${(this.M3U8_Part_Target * 3.5).toFixed(3)}\n`
+    if (this.M3U8_Low_Latency_Mode) {
+      m3u8 += `#EXT-X-PART-INF:PART-TARGET=${this.M3U8_Part_Target.toFixed(3)}\n`
+      m3u8 += `#EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=${(this.M3U8_Part_Target * 3.5).toFixed(3)}\n`
+    }
     m3u8 += `#EXT-X-MEDIA-SEQUENCE:${this.M3U8_Begin_Sequence_Number}\n`
     for (let media_sequence = this.M3U8_Begin_Sequence_Number; media_sequence < this.M3U8_End_Sequence_Number; media_sequence++) {
       const index = media_sequence - this.M3U8_Begin_Sequence_Number;
@@ -170,17 +175,21 @@ export default class TSFragmenter extends Writable {
 
       m3u8 += `\n`;
       m3u8 += `#EXT-X-PROGRAM-DATE-TIME:${segment.getProgramDateTime()}\n`
-      for (let p = 0; p < segment.getLength(); p++) {
-        const part = segment.getPartial(p);
-        if (!part) { break; }
+      if (this.M3U8_Low_Latency_Mode) {
+        for (let p = 0; p < segment.getLength(); p++) {
+          const part = segment.getPartial(p);
+          if (!part) { break; }
 
-        // FIXME: segment 完了通知が飛んだ際に、ここでまだ part が終了してない。なんで、segment で待つのは推奨しない状態になってる。
-        if (!part.isCompleted()) {
-          m3u8 += `#EXT-X-PRELOAD-HINT:TYPE=PART,URI="part?msn=${media_sequence}&part.ts=${p}"${part.getHasIFrame() ? ",INDEPENDENT=YES" : ""}\n`
-        } else {
-          m3u8 += `#EXT-X-PART:DURATION=${part.getSeconds()!.toFixed(3)},URI="part?msn=${media_sequence}&part=${p}"${part.getHasIFrame() ? ",INDEPENDENT=YES" : ""}\n`
-          extinf += Number.parseFloat(part.getSeconds()?.toFixed(3) ?? "0");
+          // FIXME: segment 完了通知が飛んだ際に、ここでまだ part が終了してない。なんで、segment で待つのは推奨しない状態になってる。
+          if (!part.isCompleted()) {
+            m3u8 += `#EXT-X-PRELOAD-HINT:TYPE=PART,URI="part?msn=${media_sequence}&part.ts=${p}"${part.getHasIFrame() ? ",INDEPENDENT=YES" : ""}\n`
+          } else {
+            m3u8 += `#EXT-X-PART:DURATION=${part.getSeconds()!.toFixed(3)},URI="part?msn=${media_sequence}&part=${p}"${part.getHasIFrame() ? ",INDEPENDENT=YES" : ""}\n`
+            extinf += Number.parseFloat(part.getSeconds()?.toFixed(3) ?? "0");
+          }
         }
+      } else {
+        extinf = segment.getSeconds() ?? 0;
       }
 
       if (segment.isCompleted()) {
