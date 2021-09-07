@@ -1,0 +1,48 @@
+{
+  "name": "@monyone/ts-fragmenter",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "d.ts/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "d.ts/**/*",
+    "src/**/*",
+    "tsconfig.json"
+  ],
+  "author": "monyone <monyone.teihen@gmail.com>",
+  "description": "convert mpegts to fragments for ll-hls",
+  "keywords": [
+    "mpegts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/monyone/node-ts-fragmenter"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=12"
+  },
+  "scripts": {
+    "tsc": "tsc",
+    "build": "npm-run-all clean tsc",
+    "format": "prettier --write src/**/*.ts",
+    "lint:tsc": "tsc --noEmit",
+    "lint:eslint": "eslint src/**/*.ts",
+    "lint:prettier": "prettier --check src/**/*.ts",
+    "clean": "rimraf dist d.ts"
+  },
+  "devDependencies": {
+    "@types/node": "12",
+    "@typescript-eslint/eslint-plugin": "^4.17.0",
+    "@typescript-eslint/parser": "^4.17.0",
+    "eslint": "^7.22.0",
+    "eslint-config-prettier": "^8.1.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.2.1",
+    "rimraf": "^3.0.2",
+    "typescript": "^4.2.3"
+  },
+  "dependencies": {
+    "arib-mpeg2ts-parser": "^3.0.9"
+  }
+}
