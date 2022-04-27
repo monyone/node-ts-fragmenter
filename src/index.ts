@@ -518,7 +518,7 @@ export default class TSFragmenter extends Writable {
               VideoPES,
               this.Packet_TransportErrorIndicator,
               this.Packet_TransportPriority,
-              0,
+              this.PMT_VideoPid,
               this.Packet_TransportScramblingControl,
               this.Video_Continuous_Counter
             );
@@ -536,7 +536,7 @@ export default class TSFragmenter extends Writable {
             AudioPES,
             this.Packet_TransportErrorIndicator,
             this.Packet_TransportPriority,
-            0,
+            this.PMT_AudioPid,
             this.Packet_TransportScramblingControl,
             this.Audio_Continuous_Counter
           );
