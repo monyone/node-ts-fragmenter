@@ -1,6 +1,6 @@
 {
   "name": "@monyone/ts-fragmenter",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "main": "dist/index.js",
   "types": "d.ts/index.d.ts",
   "files": [
@@ -43,6 +43,6 @@
     "typescript": "^4.2.3"
   },
   "dependencies": {
-    "arib-mpeg2ts-parser": "^3.0.9"
+    "arib-mpeg2ts-parser": "^3.0.14"
   }
 }

@@ -4,7 +4,7 @@ import { Writable, WritableOptions } from 'stream'
 
 import { TSPacket, TSPacketQueue } from 'arib-mpeg2ts-parser';
 import { TSSection, TSSectionQueue, TSSectionPacketizer } from 'arib-mpeg2ts-parser';
-import { TSPES, TSPESQueue } from 'arib-mpeg2ts-parser';
+import { TSPES, TSPESQueue, TSPESPacketizer } from 'arib-mpeg2ts-parser';
 
 class PartialSegment {
   private beginPTS: number;
@@ -134,10 +134,14 @@ export default class TSFragmenter extends Writable {
   private PMT_lastPMT: Buffer | null = null;
   private PMT_Continuous_Counter: number = 0;
   private PMT_VideoPid: number | null = null;
+  private PMT_AudioPid: number | null = null;
   private PMT_PCRPid: number | null = null;
 
   private Video_TSPESQueue = new TSPESQueue();
-  private Video_Packets: Buffer[] = [];
+  private Video_Continuous_Counter: number = 0;
+
+  private Audio_TSPESQueue = new TSPESQueue();
+  private Audio_Continuous_Counter: number = 0;
 
   private M3U8_Segments_Length: number;
   private M3U8_Low_Latency_Mode: boolean;
@@ -444,6 +448,8 @@ export default class TSFragmenter extends Writable {
 
             if (this.PMT_VideoPid == null && stream_type === 0x1b) { // AVC VIDEO
               this.PMT_VideoPid = elementary_PID;
+            } else if(this.PMT_AudioPid == null && stream_type == 0x0f) { // AAC Audio
+              this.PMT_AudioPid = elementary_PID;
             }
 
             begin += 5 + ES_info_length;
@@ -459,17 +465,13 @@ export default class TSFragmenter extends Writable {
         }
       } else if (pid === this.PMT_VideoPid) {
         this.Video_TSPESQueue.push(packet);
-        this.Video_Packets.push(packet);
 
         while (!this.Video_TSPESQueue.isEmpty()) {
           const VideoPES = this.Video_TSPESQueue.pop()!;
 
-          let pts = 0;
-          pts *= (1 << 3); pts += ((VideoPES[TSPES.PES_HEADER_SIZE + 3 + 0] & 0x0E) >> 1);
-          pts *= (1 << 8); pts += ((VideoPES[TSPES.PES_HEADER_SIZE + 3 + 1] & 0xFF) >> 0);
-          pts *= (1 << 7); pts += ((VideoPES[TSPES.PES_HEADER_SIZE + 3 + 2] & 0xFE) >> 1);
-          pts *= (1 << 8); pts += ((VideoPES[TSPES.PES_HEADER_SIZE + 3 + 3] & 0xFF) >> 0);
-          pts *= (1 << 7); pts += ((VideoPES[TSPES.PES_HEADER_SIZE + 3 + 4] & 0xFE) >> 1);
+          const pts = TSPES.PTS(VideoPES);
+          const dts = TSPES.DTS(VideoPES);
+          const timestamp = (dts ?? pts)!;
 
           const PES_header_data_length = VideoPES[TSPES.PES_HEADER_SIZE + 2];
 
@@ -497,24 +499,49 @@ export default class TSFragmenter extends Writable {
               this.M3U8_Initial_IDR_Detected = true;
             }
 
-            this.M3U8_New_Segment(pts);
+            this.M3U8_New_Segment(timestamp);
           }
 
           if (this.M3U8_Initial_IDR_Detected) {
             if (!hasIDR) {
               const part = this.M3U8_Get_Last_Partial();
               if (part) {
-                const time = part.estimateSeconds(pts);
+                const time = part.estimateSeconds(timestamp);
 
                 if (this.M3U8_Part_Target * 0.85 < time && time <= this.M3U8_Part_Target) {
-                  this.M3U8_New_Partial(pts);
+                  this.M3U8_New_Partial(timestamp);
                 }
               }
             }
 
-            this.Video_Packets.forEach((packet) => this.M3U8_Add_Packet(packet));
-            this.Video_Packets = [];
+            const packets = TSPESPacketizer.packetize(
+              VideoPES,
+              this.Packet_TransportErrorIndicator,
+              this.Packet_TransportPriority,
+              0,
+              this.Packet_TransportScramblingControl,
+              this.Video_Continuous_Counter
+            );
+            this.Video_Continuous_Counter = (this.Video_Continuous_Counter + packets.length) & 0x0F;
+            packets.forEach((packet) => this.M3U8_Add_Packet(packet));
           }
+        }
+      } else if (pid === this.PMT_AudioPid) {
+        this.Audio_TSPESQueue.push(packet);
+
+        while (!this.Audio_TSPESQueue.isEmpty()) {
+          const AudioPES = this.Audio_TSPESQueue.pop()!;
+
+          const packets = TSPESPacketizer.packetize(
+            AudioPES,
+            this.Packet_TransportErrorIndicator,
+            this.Packet_TransportPriority,
+            0,
+            this.Packet_TransportScramblingControl,
+            this.Audio_Continuous_Counter
+          );
+          this.Audio_Continuous_Counter = (this.Audio_Continuous_Counter + packets.length) & 0x0F;
+          packets.forEach((packet) => this.M3U8_Add_Packet(packet));
         }
       } else if (pid === this.PMT_PCRPid) {
         if (TSPacket.has_pcr(packet)) {
